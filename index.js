@@ -1,41 +1,52 @@
-const express = require('express');
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-
-puppeteer.use(StealthPlugin());
+import express from 'express';
+import puppeteer from 'puppeteer';
 
 const app = express();
-const PORT = 8000;
+const PORT = 4000;
 
 app.get('/search', async (req, res) => {
     const query = req.query.q;
-    if (!query) return res.status(400).json({ error: 'Query parameter "q" is required' });
+    if (!query) {
+        return res.status(400).json({ error: "Missing query parameter 'q'" });
+    }
 
     const url = `https://shoob.gg/cards?page=1&query=${encodeURIComponent(query)}`;
-    let browser;
 
     try {
-        browser = await puppeteer.launch({
-            headless: 'new',
+        const browser = await puppeteer.launch({
             args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            headless: "new"
         });
 
         const page = await browser.newPage();
-        await page.goto(url, { waitUntil: 'domcontentloaded' });
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
-        const cards = await page.evaluate(() => {
-            return Array.from(document.querySelectorAll('.card-list img'))
-                .map(img => ({ image: img.src, name: img.alt || 'Unknown' }));
+        const cardData = await page.evaluate(() => {
+            const cards = [];
+            document.querySelectorAll('.card-grid-item').forEach(card => {
+                const name = card.querySelector('.card-name')?.innerText || 'Unknown';
+                const image = card.querySelector('img')?.src || null;
+                const description = card.querySelector('.card-description')?.innerText || 'No description available';
+                const tier = card.querySelector('.card-tier')?.innerText || 'Unknown';
+                cards.push({ name, image, description, tier });
+            });
+            return cards;
         });
 
-        if (!cards.length) throw new Error('No cards found');
+        await browser.close();
 
-        res.json({ success: true, cards });
+        if (cardData.length === 0) {
+            return res.status(404).json({ error: "No cards found for this query" });
+        }
+
+        res.json({ results: cardData });
+
     } catch (error) {
-        res.status(500).json({ error: 'Failed to scrape Shoob.gg', details: error.message });
-    } finally {
-        if (browser) await browser.close();
+        console.error("Scraping Error:", error);
+        res.status(500).json({ error: "Failed to scrape Shoob.gg", details: error.message });
     }
 });
 
-app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+});
