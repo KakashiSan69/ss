@@ -1,37 +1,41 @@
-const express = require('express')
-const puppeteer = require('puppeteer')
+import express from 'express';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
-const app = express()
-const PORT = 8000
+puppeteer.use(StealthPlugin());
+
+const app = express();
+const PORT = 4000;
 
 app.get('/search', async (req, res) => {
-    const { query, page = 1 } = req.query
-    if (!query) return res.status(400).json({ error: 'Provide a search query' })
+    const query = req.query.q;
+    if (!query) return res.status(400).json({ error: 'Query parameter "q" is required' });
+
+    const url = `https://shoob.gg/cards?page=1&query=${encodeURIComponent(query)}`;
+    let browser;
 
     try {
-        const browser = await puppeteer.launch({
-            headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
-        })
-        const pageObj = await browser.newPage()
-        const searchUrl = `https://shoob.gg/cards?page=${page}&query=${encodeURIComponent(query)}`
+        browser = await puppeteer.launch({
+            headless: 'new',
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        });
 
-        await pageObj.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 })
+        const page = await browser.newPage();
+        await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-        const cards = await pageObj.evaluate(() => {
-            return Array.from(document.querySelectorAll('.card-container')).map(card => ({
-                name: card.querySelector('.card-title')?.innerText || 'Unknown',
-                image: card.querySelector('img')?.src || '',
-                link: card.querySelector('a')?.href || ''
-            }))
-        })
+        const cards = await page.evaluate(() => {
+            return Array.from(document.querySelectorAll('.card-list img'))
+                .map(img => ({ image: img.src, name: img.alt || 'Unknown' }));
+        });
 
-        await browser.close()
-        res.json({ query, page, results: cards })
+        if (!cards.length) throw new Error('No cards found');
+
+        res.json({ success: true, cards });
     } catch (error) {
-        console.error('Scraping Error:', error)
-        res.status(500).json({ error: 'Failed to scrape Shoob.gg' })
+        res.status(500).json({ error: 'Failed to scrape Shoob.gg', details: error.message });
+    } finally {
+        if (browser) await browser.close();
     }
-})
+});
 
-app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`))
+app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
