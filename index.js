@@ -42,7 +42,7 @@ app.get("/search", async (req, res) => {
         const cardTier = card.querySelector(".card-tier")?.innerText.trim();
         const imageUrl = card.querySelector("img")?.src;
 
-        if (cardName && cardTier === `Tier ${tier}`) {
+        if (cardName && cardTier && cardTier.includes(`Tier ${tier}`)) {
           results.push({ name: cardName, tier: cardTier, image: imageUrl });
         }
       });
