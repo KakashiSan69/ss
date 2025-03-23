@@ -1,11 +1,11 @@
-import express from 'express';
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+const express = require('express');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
 puppeteer.use(StealthPlugin());
 
 const app = express();
-const PORT = 4000;
+const PORT = 8000;
 
 app.get('/search', async (req, res) => {
     const query = req.query.q;
