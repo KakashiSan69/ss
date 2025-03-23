@@ -1,52 +1,83 @@
-const express = require('express');
-const puppeteer = require('puppeteer');
+import express from "express";
+import puppeteer from "puppeteer";
 
 const app = express();
 const PORT = 8000;
 
-app.get('/search', async (req, res) => {
-    const query = req.query.q;
-    if (!query) {
-        return res.status(400).json({ error: "Missing query parameter 'q'" });
-    }
+let browser;
 
-    const url = `https://shoob.gg/cards?page=1&query=${encodeURIComponent(query)}`;
-
-    try {
-        const browser = await puppeteer.launch({
+// Function to launch browser once and keep it open
+async function launchBrowser() {
+    if (!browser) {
+        browser = await puppeteer.launch({
+            executablePath: "/usr/bin/chromium-browser",
             args: ['--no-sandbox', '--disable-setuid-sandbox'],
             headless: "new"
         });
+    }
+}
 
-        const page = await browser.newPage();
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+// Function to scrape all pages
+async function findCard(name, tier) {
+    const page = await browser.newPage();
+    let foundCard = null;
 
-        const cardData = await page.evaluate(() => {
-            const cards = [];
-            document.querySelectorAll('.card-grid-item').forEach(card => {
-                const name = card.querySelector('.card-name')?.innerText || 'Unknown';
-                const image = card.querySelector('img')?.src || null;
-                const description = card.querySelector('.card-description')?.innerText || 'No description available';
-                const tier = card.querySelector('.card-tier')?.innerText || 'Unknown';
-                cards.push({ name, image, description, tier });
-            });
-            return cards;
-        });
+    try {
+        for (let i = 1; i <= 2090; i++) {
+            const url = `https://shoob.gg/cards?page=${i}&query=${encodeURIComponent(name)}`;
+            await page.goto(url, { waitUntil: "domcontentloaded" });
 
-        await browser.close();
+            const card = await page.evaluate((searchName, searchTier) => {
+                searchName = searchName.toLowerCase();
+                searchTier = searchTier.toLowerCase();
 
-        if (cardData.length === 0) {
-            return res.status(404).json({ error: "No cards found for this query" });
+                const allCards = document.querySelectorAll(".card-container");
+                for (let card of allCards) {
+                    const cardName = card.querySelector(".card-title")?.innerText.trim().toLowerCase();
+                    const cardTier = card.querySelector(".card-tier")?.innerText.trim().toLowerCase();
+                    const img = card.querySelector("img")?.src;
+                    const description = card.querySelector(".card-description")?.innerText.trim();
+
+                    if (cardName === searchName && cardTier.includes(searchTier)) {
+                        return { name: cardName, tier: cardTier, img, description };
+                    }
+                }
+                return null;
+            }, name, tier);
+
+            if (card) {
+                foundCard = card;
+                break; // Stop searching if found
+            }
         }
+    } catch (err) {
+        console.error("Error while scraping:", err);
+    } finally {
+        await page.close();
+    }
+    return foundCard;
+}
 
-        res.json({ results: cardData });
+// API Route to Search Card
+app.get("/search", async (req, res) => {
+    const { name, tier } = req.query;
+    if (!name || !tier) {
+        return res.status(400).json({ error: "Missing 'name' or 'tier' parameter" });
+    }
 
-    } catch (error) {
-        console.error("Scraping Error:", error);
-        res.status(500).json({ error: "Failed to scrape Shoob.gg", details: error.message });
+    try {
+        const card = await findCard(name, tier);
+        if (!card) {
+            return res.status(404).json({ error: "Card not found in 2090 pages." });
+        }
+        res.json(card);
+    } catch (err) {
+        res.status(500).json({ error: "Error during search", details: err.message });
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
+// Start Server and Browser
+app.listen(PORT, async () => {
+    await launchBrowser();
+    console.log(`Server running at http://localhost:${PORT}`);
 });
