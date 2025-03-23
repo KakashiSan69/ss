@@ -4,6 +4,19 @@ import puppeteer from "puppeteer";
 const app = express();
 const PORT = 8000;
 
+let browser;
+
+async function getBrowser() {
+  if (!browser) {
+    browser = await puppeteer.launch({
+      headless: "new",
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      executablePath: "/usr/bin/chromium-browser",
+    });
+  }
+  return browser;
+}
+
 app.get("/search", async (req, res) => {
   const { name, tier } = req.query;
 
@@ -12,15 +25,10 @@ app.get("/search", async (req, res) => {
   }
 
   try {
-    const browser = await puppeteer.launch({
-      headless: "new",
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-      executablePath: "/usr/bin/chromium-browser",
-    });
-
+    const browser = await getBrowser();
     const page = await browser.newPage();
     const searchURL = `https://shoob.gg/cards?page=1&query=${encodeURIComponent(name)}`;
-    await page.goto(searchURL);
+    await page.goto(searchURL, { waitUntil: "domcontentloaded" });
 
     // Wait for cards to load
     await page.waitForSelector(".card-container", { timeout: 10000 });
@@ -32,9 +40,9 @@ app.get("/search", async (req, res) => {
       cardElements.forEach((card) => {
         const cardName = card.querySelector(".card-title")?.innerText.trim();
         const cardTier = card.querySelector(".card-tier")?.innerText.trim();
+        const imageUrl = card.querySelector("img")?.src;
 
         if (cardName && cardTier === `Tier ${tier}`) {
-          const imageUrl = card.querySelector("img")?.src;
           results.push({ name: cardName, tier: cardTier, image: imageUrl });
         }
       });
@@ -42,7 +50,7 @@ app.get("/search", async (req, res) => {
       return results;
     }, tier);
 
-    await browser.close();
+    await page.close();
 
     if (cards.length === 0) {
       return res.status(404).json({ message: "No cards found for the given name and tier" });
