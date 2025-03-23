@@ -2,7 +2,7 @@ const express = require('express')
 const puppeteer = require('puppeteer')
 
 const app = express()
-const PORT = 4000
+const PORT = 8000
 
 app.get('/search', async (req, res) => {
     const { query, page = 1 } = req.query
