@@ -1,0 +1,43 @@
+{
+  "name": "hd-bart-generator-api",
+  "version": "2.1.0",
+  "description": "API for generating HD Bart images using Playwright",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "keywords": ["playwright", "express", "bart-generator", "API", "HD"],
+  "author": "naxordeve",
+  "license": "MIT",
+  "dependencies": {
+    "express": "latest",
+    "playwright": "latest",
+    "puppeteer": "latest",
+    "cors": "latest",
+    "crypto": "latest",
+    "path": "latest",
+    "dotenv": "latest",
+    "axios": "latest",
+    "qs": "latest",
+    "groq-sdk": "latest",
+    "multer": "latest",
+    "form-data": "latest",
+    "shannz-playwright": "latest",
+    "querystring": "latest",
+    "node-fetch": "latest",
+    "yt-search": "latest",
+    "axios-cookiejar-support": "latest",
+    "tough-cookie": "latest",
+    "url": "latest",
+    "fast-levenshtein": "latest",
+    "fake-useragent": "latest",
+    "cheerio": "latest",
+    "os": "latest",
+    "socket.io-client": "latest"
+  },
+  "devDependencies": {
+    "nodemon": "latest"
+  }
+}
